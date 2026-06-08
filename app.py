@@ -77,7 +77,7 @@ def results_to_frames(results, template: EvalTemplate | None = None):
             "tool_calls_count": len(tool_calls) if isinstance(tool_calls, list) else 0,
             "improvement_suggestion": item.improvement_suggestion,
         }
-        metric = item.metric_score
+        metric = getattr(item, "metric_score", None)
         if metric:
             row.update(
                 {
@@ -670,7 +670,16 @@ def render_version_compare(db: EvalDatabase) -> None:
     if (base_run.get("template_id") or "") != (target_run.get("template_id") or ""):
         st.warning("两次评测使用了不同模板，指标口径可能不完全一致。")
 
-    metric_summary = db.compare_metric_summary(base_id, target_id)
+    metric_summary = None
+    if hasattr(db, "compare_metric_summary"):
+        try:
+            metric_summary = db.compare_metric_summary(base_id, target_id)
+        except Exception as e:
+            st.warning(f"读取版本对比指标时出现问题：{e}")
+            metric_summary = None
+    else:
+        st.warning("当前数据库版本不支持版本对比的度量摘要，已跳过 Product Metrics 变化展示。")
+
     render_compare_metrics(base_run, target_run, metric_summary)
     render_compare_detail(compare_df)
     compare_report = generate_compare_report(base_run, target_run, compare_df)
@@ -852,50 +861,66 @@ def render_eval_trends(db: EvalDatabase) -> None:
         return
 
     # --- Filter controls ---
-    filter_options = db.get_filter_options()
-    with st.expander("指标筛选（按场景/难度/标签/模板/Prompt）", expanded=False):
-        filter_cols = st.columns(5)
-        selected_scenarios = filter_cols[0].multiselect(
-            "场景筛选",
-            filter_options.get("scenarios", []),
-            key="trend_filter_scenarios",
-        )
-        selected_difficulties = filter_cols[1].multiselect(
-            "难度筛选",
-            filter_options.get("difficulties", []),
-            key="trend_filter_difficulties",
-        )
-        selected_tags = filter_cols[2].multiselect(
-            "标签筛选",
-            filter_options.get("tags", []),
-            key="trend_filter_tags",
-        )
-        selected_templates = filter_cols[3].multiselect(
-            "模板筛选",
-            filter_options.get("templates", []),
-            key="trend_filter_templates",
-        )
-        selected_prompts = filter_cols[4].multiselect(
-            "Prompt 筛选",
-            filter_options.get("prompt_names", []),
-            key="trend_filter_prompts",
+    has_filter_support = hasattr(db, "get_filter_options") and hasattr(db, "get_filtered_metric_trends")
+    selected_scenarios = []
+    selected_difficulties = []
+    selected_tags = []
+    selected_templates = []
+    selected_prompts = []
+    has_filters = False
+    metric_trend_df = pd.DataFrame()
+
+    if has_filter_support:
+        try:
+            filter_options = db.get_filter_options()
+        except Exception:
+            filter_options = {"scenarios": [], "difficulties": [], "tags": [], "templates": [], "prompt_names": []}
+        with st.expander("指标筛选（按场景/难度/标签/模板/Prompt）", expanded=False):
+            filter_cols = st.columns(5)
+            selected_scenarios = filter_cols[0].multiselect(
+                "场景筛选",
+                filter_options.get("scenarios", []),
+                key="trend_filter_scenarios",
+            )
+            selected_difficulties = filter_cols[1].multiselect(
+                "难度筛选",
+                filter_options.get("difficulties", []),
+                key="trend_filter_difficulties",
+            )
+            selected_tags = filter_cols[2].multiselect(
+                "标签筛选",
+                filter_options.get("tags", []),
+                key="trend_filter_tags",
+            )
+            selected_templates = filter_cols[3].multiselect(
+                "模板筛选",
+                filter_options.get("templates", []),
+                key="trend_filter_templates",
+            )
+            selected_prompts = filter_cols[4].multiselect(
+                "Prompt 筛选",
+                filter_options.get("prompt_names", []),
+                key="trend_filter_prompts",
+            )
+
+        has_filters = any(
+            [selected_scenarios, selected_difficulties, selected_tags, selected_templates, selected_prompts]
         )
 
-    has_filters = any(
-        [selected_scenarios, selected_difficulties, selected_tags, selected_templates, selected_prompts]
-    )
-
-    # Get filtered metric trends for product metrics
-    if has_filters:
-        metric_trend_df = db.get_filtered_metric_trends(
-            scenarios=selected_scenarios or None,
-            difficulties=selected_difficulties or None,
-            tags=selected_tags or None,
-            templates=selected_templates or None,
-            prompt_names=selected_prompts or None,
-        )
-    else:
-        metric_trend_df = db.get_filtered_metric_trends()
+        # Get filtered metric trends for product metrics
+        try:
+            if has_filters:
+                metric_trend_df = db.get_filtered_metric_trends(
+                    scenarios=selected_scenarios or None,
+                    difficulties=selected_difficulties or None,
+                    tags=selected_tags or None,
+                    templates=selected_templates or None,
+                    prompt_names=selected_prompts or None,
+                )
+            else:
+                metric_trend_df = db.get_filtered_metric_trends()
+        except Exception:
+            metric_trend_df = pd.DataFrame()
 
     # Basic metrics use runs_df (unfiltered historical view)
     max_count = min(30, len(runs_df))

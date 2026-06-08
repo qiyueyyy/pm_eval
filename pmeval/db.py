@@ -232,7 +232,7 @@ class EvalDatabase:
                  expected_tool_coverage, details_json)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                [self._metric_row(r) for r in results if r.metric_score],
+                [self._metric_row(r) for r in results if hasattr(r, "metric_score") and r.metric_score],
             )
 
     def list_runs(self) -> pd.DataFrame:
@@ -472,9 +472,9 @@ class EvalDatabase:
                 "prompt_names": prompt_names,
             }
 
-    def _compute_metric_averages(self, results: list) -> dict[str, float | None]:
+    def _compute_metric_averages(self, results: list):
         """Compute per-metric averages from result metric_scores."""
-        metrics = [r.metric_score for r in results if r.metric_score]
+        metrics = [r.metric_score for r in results if hasattr(r, "metric_score") and r.metric_score]
         if not metrics:
             return {}
         def _avg(attr, as_float=True):

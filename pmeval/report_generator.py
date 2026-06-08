@@ -190,11 +190,13 @@ def _metric_summary_lines(results: list[EvalResult]) -> list[str]:
         "| --- | ---: | ---: |",
     ]
     for attr, label, percent in specs:
-        values = [
-            getattr(result.metric_score, attr)
-            for result in results
-            if result.metric_score and getattr(result.metric_score, attr) is not None
-        ]
+        values = []
+        for result in results:
+            ms = getattr(result, "metric_score", None)
+            if ms is not None:
+                v = getattr(ms, attr, None)
+                if v is not None:
+                    values.append(v)
         if not values:
             lines.append(f"| {label} | N/A | 0 |")
             continue
