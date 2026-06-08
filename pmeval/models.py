@@ -11,6 +11,7 @@ class EvalCase:
     constraints_json: str
     difficulty: str
     tags: str
+    template_id: str = ""
 
 
 @dataclass
@@ -42,6 +43,19 @@ class JudgeScore:
 
 
 @dataclass
+class MetricScore:
+    intent_accuracy: float | None = None
+    answer_relevance_score: float | None = None
+    task_completion: float | None = None
+    multi_turn_completion: float | None = None
+    hallucination: bool | None = None
+    retrieval_recall: float | None = None
+    tool_success_rate: float | None = None
+    expected_tool_coverage: float | None = None
+    details: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class EvalResult:
     batch_id: str
     case: EvalCase
@@ -52,3 +66,4 @@ class EvalResult:
     bad_case_type: str
     root_cause: str
     improvement_suggestion: str
+    metric_score: MetricScore | None = None

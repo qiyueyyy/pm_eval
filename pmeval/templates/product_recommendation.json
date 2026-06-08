@@ -1,0 +1,165 @@
+{
+  "id": "product_recommendation",
+  "name": "商品推荐",
+  "description": "用于评测商品、服务或方案推荐类回答，关注约束满足、推荐理由、风险提示和回答可用性。",
+  "rule_checks": [
+    {
+      "id": "budget_limit",
+      "name": "预算约束",
+      "type": "numeric_lte",
+      "weight": 20,
+      "params": {
+        "constraint_fields": [
+          "budget",
+          "max_price"
+        ],
+        "unset_pass": true
+      }
+    },
+    {
+      "id": "category_match",
+      "name": "品类关键词",
+      "type": "constraint_keywords",
+      "weight": 20,
+      "params": {
+        "constraint_fields": [
+          "category",
+          "categories",
+          "category_keywords"
+        ],
+        "unset_pass": true
+      }
+    },
+    {
+      "id": "reason",
+      "name": "推荐理由",
+      "type": "contains_any",
+      "weight": 20,
+      "params": {
+        "keywords": [
+          "理由",
+          "原因",
+          "因为",
+          "适合",
+          "优势",
+          "依据"
+        ]
+      }
+    },
+    {
+      "id": "risk_tip",
+      "name": "避雷/风险提示",
+      "type": "contains_any",
+      "weight": 20,
+      "params": {
+        "keywords": [
+          "避雷",
+          "风险",
+          "注意",
+          "不建议",
+          "谨慎",
+          "刺激",
+          "过敏"
+        ]
+      }
+    },
+    {
+      "id": "not_vague",
+      "name": "非空泛回答",
+      "type": "min_length_and_avoid_keywords",
+      "weight": 20,
+      "params": {
+        "min_length": 40,
+        "avoid_keywords": [
+          "看个人",
+          "因人而异",
+          "都可以",
+          "随便",
+          "无法判断",
+          "建议咨询专业人士"
+        ]
+      }
+    }
+  ],
+  "judge_fields": [
+    {
+      "id": "need_understanding_score",
+      "name": "需求理解",
+      "description": "是否理解用户真实需求、场景、偏好与限制条件"
+    },
+    {
+      "id": "constraint_satisfaction_score",
+      "name": "约束满足",
+      "description": "是否满足预算、品类、肤质、禁忌、使用场景等明确约束"
+    },
+    {
+      "id": "relevance_score",
+      "name": "推荐相关性",
+      "description": "推荐内容与用户问题是否高度相关"
+    },
+    {
+      "id": "usefulness_score",
+      "name": "回答可用性",
+      "description": "回答是否具体、可执行，能帮助用户做决策"
+    },
+    {
+      "id": "faithfulness_score",
+      "name": "事实可信度",
+      "description": "是否避免编造品牌、成分、功效、价格或无依据断言"
+    },
+    {
+      "id": "clarity_score",
+      "name": "表达清晰度",
+      "description": "结构、语言和重点是否清晰"
+    }
+  ],
+  "bad_case": {
+    "rule_score_lt": 70,
+    "judge_average_lt": 3.5,
+    "types": [
+      "需求理解错误",
+      "约束不满足",
+      "幻觉风险",
+      "回答太泛",
+      "格式错误",
+      "检索/知识库问题",
+      "接口失败",
+      "无问题",
+      "未解决问题",
+      "工具调用问题"
+    ],
+    "root_causes": [
+      "Prompt问题",
+      "知识库问题",
+      "检索问题",
+      "工具问题",
+      "业务规则问题",
+      "模型问题",
+      "交互问题",
+      "接口问题"
+    ],
+    "no_problem_type": "无问题",
+    "default_type": "回答太泛",
+    "default_root_cause": "模型问题"
+  },
+  "metric_policy": {
+    "enabled_metrics": [
+      "intent_accuracy",
+      "answer_relevance_score",
+      "task_completion",
+      "hallucination",
+      "retrieval_recall",
+      "tool_success_rate",
+      "expected_tool_coverage"
+    ],
+    "thresholds": {
+      "intent_accuracy": 0.9,
+      "answer_relevance_score": 3.5,
+      "task_completion": 0.85,
+      "hallucination_rate": 0.05,
+      "retrieval_recall": 0.7,
+      "tool_success_rate": 0.95,
+      "expected_tool_coverage": 1.0
+    }
+  }
+}

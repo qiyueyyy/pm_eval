@@ -1,0 +1,168 @@
+{
+  "id": "customer_service",
+  "name": "客服",
+  "description": "用于评测客服问答，关注问题理解、政策一致性、解决路径、安抚表达和升级判断。",
+  "rule_checks": [
+    {
+      "id": "solution_path",
+      "name": "解决路径",
+      "type": "contains_any",
+      "weight": 25,
+      "params": {
+        "keywords": [
+          "建议",
+          "可以",
+          "步骤",
+          "处理",
+          "解决",
+          "联系",
+          "提交"
+        ]
+      }
+    },
+    {
+      "id": "policy_constraint",
+      "name": "政策/约束满足",
+      "type": "constraint_keywords",
+      "weight": 25,
+      "params": {
+        "constraint_fields": [
+          "policy",
+          "policies",
+          "must_include"
+        ],
+        "unset_pass": true
+      }
+    },
+    {
+      "id": "empathy",
+      "name": "安抚表达",
+      "type": "contains_any",
+      "weight": 15,
+      "params": {
+        "keywords": [
+          "理解",
+          "抱歉",
+          "辛苦",
+          "感谢",
+          "别担心"
+        ]
+      }
+    },
+    {
+      "id": "handoff",
+      "name": "升级/转人工判断",
+      "type": "contains_any",
+      "weight": 15,
+      "params": {
+        "keywords": [
+          "人工",
+          "客服",
+          "升级",
+          "工单",
+          "专员",
+          "进一步核实"
+        ]
+      }
+    },
+    {
+      "id": "not_vague",
+      "name": "非空泛回答",
+      "type": "min_length_and_avoid_keywords",
+      "weight": 20,
+      "params": {
+        "min_length": 35,
+        "avoid_keywords": [
+          "无法处理",
+          "不知道",
+          "自己看",
+          "随便"
+        ]
+      }
+    }
+  ],
+  "judge_fields": [
+    {
+      "id": "need_understanding_score",
+      "name": "问题理解",
+      "description": "是否准确理解用户问题和情绪"
+    },
+    {
+      "id": "policy_consistency_score",
+      "name": "政策一致性",
+      "description": "是否符合业务政策、承诺边界和合规要求"
+    },
+    {
+      "id": "resolution_score",
+      "name": "解决有效性",
+      "description": "是否提供可执行的解决路径"
+    },
+    {
+      "id": "empathy_score",
+      "name": "安抚表达",
+      "description": "是否礼貌、安抚且不过度承诺"
+    },
+    {
+      "id": "handoff_score",
+      "name": "升级判断",
+      "description": "是否在需要时合理引导人工或工单处理"
+    },
+    {
+      "id": "clarity_score",
+      "name": "表达清晰度",
+      "description": "结构和语言是否清晰"
+    }
+  ],
+  "bad_case": {
+    "rule_score_lt": 70,
+    "judge_average_lt": 3.5,
+    "types": [
+      "问题理解错误",
+      "政策不一致",
+      "未解决问题",
+      "过度承诺",
+      "缺少安抚",
+      "错误转人工",
+      "接口失败",
+      "无问题",
+      "需求理解错误",
+      "幻觉风险",
+      "检索/知识库问题",
+      "工具调用问题"
+    ],
+    "root_causes": [
+      "Prompt问题",
+      "政策配置问题",
+      "工具问题",
+      "知识库问题",
+      "模型问题",
+      "流程设计问题",
+      "接口问题",
+      "业务规则问题",
+      "检索问题"
+    ],
+    "no_problem_type": "无问题",
+    "default_type": "未解决问题",
+    "default_root_cause": "模型问题"
+  },
+  "metric_policy": {
+    "enabled_metrics": [
+      "intent_accuracy",
+      "answer_relevance_score",
+      "task_completion",
+      "multi_turn_completion",
+      "hallucination",
+      "tool_success_rate",
+      "expected_tool_coverage"
+    ],
+    "thresholds": {
+      "intent_accuracy": 0.9,
+      "answer_relevance_score": 3.5,
+      "task_completion": 0.85,
+      "multi_turn_completion": 0.8,
+      "hallucination_rate": 0.05,
+      "tool_success_rate": 0.95,
+      "expected_tool_coverage": 1.0
+    }
+  }
+}

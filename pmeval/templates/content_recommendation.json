@@ -1,0 +1,161 @@
+{
+  "id": "content_recommendation",
+  "name": "内容推荐",
+  "description": "用于评测内容推荐、信息流推荐和个性化分发，关注兴趣匹配、多样性、安全和解释透明。",
+  "rule_checks": [
+    {
+      "id": "interest_match",
+      "name": "兴趣匹配",
+      "type": "constraint_keywords",
+      "weight": 25,
+      "params": {
+        "constraint_fields": [
+          "interests",
+          "topics",
+          "must_include"
+        ],
+        "unset_pass": true
+      }
+    },
+    {
+      "id": "explanation",
+      "name": "推荐解释",
+      "type": "contains_any",
+      "weight": 20,
+      "params": {
+        "keywords": [
+          "因为",
+          "理由",
+          "适合",
+          "匹配",
+          "基于"
+        ]
+      }
+    },
+    {
+      "id": "diversity",
+      "name": "多样性表达",
+      "type": "contains_any",
+      "weight": 15,
+      "params": {
+        "keywords": [
+          "不同",
+          "多样",
+          "组合",
+          "另外",
+          "也可以"
+        ]
+      }
+    },
+    {
+      "id": "safety",
+      "name": "安全合规",
+      "type": "not_contains_any",
+      "weight": 20,
+      "params": {
+        "keywords": [
+          "违法",
+          "仇恨",
+          "暴力",
+          "色情",
+          "歧视"
+        ]
+      }
+    },
+    {
+      "id": "not_vague",
+      "name": "非空泛回答",
+      "type": "min_length_and_avoid_keywords",
+      "weight": 20,
+      "params": {
+        "min_length": 35,
+        "avoid_keywords": [
+          "随便",
+          "都可以",
+          "看个人",
+          "不知道"
+        ]
+      }
+    }
+  ],
+  "judge_fields": [
+    {
+      "id": "interest_match_score",
+      "name": "兴趣匹配",
+      "description": "是否符合用户兴趣、上下文和偏好"
+    },
+    {
+      "id": "diversity_score",
+      "name": "多样性",
+      "description": "是否避免单一重复，具备适度多样性"
+    },
+    {
+      "id": "novelty_score",
+      "name": "新颖性",
+      "description": "是否提供有价值的新内容"
+    },
+    {
+      "id": "safety_score",
+      "name": "安全合规",
+      "description": "是否避免不安全、不合规或冒犯内容"
+    },
+    {
+      "id": "feedback_respect_score",
+      "name": "负反馈尊重",
+      "description": "是否尊重用户不喜欢、屏蔽或限制条件"
+    },
+    {
+      "id": "clarity_score",
+      "name": "解释透明",
+      "description": "是否清楚说明推荐原因"
+    }
+  ],
+  "bad_case": {
+    "rule_score_lt": 70,
+    "judge_average_lt": 3.5,
+    "types": [
+      "兴趣不匹配",
+      "内容重复",
+      "缺少新颖性",
+      "安全合规风险",
+      "未尊重负反馈",
+      "解释不足",
+      "接口失败",
+      "无问题",
+      "需求理解错误",
+      "未解决问题",
+      "幻觉风险",
+      "检索/知识库问题",
+      "工具调用问题"
+    ],
+    "root_causes": [
+      "画像问题",
+      "召回问题",
+      "排序问题",
+      "安全策略问题",
+      "模型问题",
+      "Prompt问题",
+      "接口问题",
+      "业务规则问题",
+      "工具问题",
+      "检索问题"
+    ],
+    "no_problem_type": "无问题",
+    "default_type": "兴趣不匹配",
+    "default_root_cause": "模型问题"
+  },
+  "metric_policy": {
+    "enabled_metrics": [
+      "intent_accuracy",
+      "answer_relevance_score",
+      "task_completion",
+      "hallucination"
+    ],
+    "thresholds": {
+      "intent_accuracy": 0.9,
+      "answer_relevance_score": 3.5,
+      "task_completion": 0.85,
+      "hallucination_rate": 0.05
+    }
+  }
+}

@@ -1,0 +1,166 @@
+{
+  "id": "search",
+  "name": "搜索",
+  "description": "用于评测搜索、问答检索和结果摘要，关注 Query 理解、召回相关性、排序合理性和可信表达。",
+  "rule_checks": [
+    {
+      "id": "query_terms",
+      "name": "Query 关键词覆盖",
+      "type": "constraint_keywords",
+      "weight": 25,
+      "params": {
+        "constraint_fields": [
+          "keywords",
+          "entities",
+          "must_include"
+        ],
+        "unset_pass": true
+      }
+    },
+    {
+      "id": "evidence",
+      "name": "证据/来源表达",
+      "type": "contains_any",
+      "weight": 20,
+      "params": {
+        "keywords": [
+          "来源",
+          "依据",
+          "结果",
+          "检索",
+          "匹配",
+          "引用"
+        ]
+      }
+    },
+    {
+      "id": "ranking_reason",
+      "name": "排序/选择理由",
+      "type": "contains_any",
+      "weight": 20,
+      "params": {
+        "keywords": [
+          "相关",
+          "优先",
+          "排序",
+          "更符合",
+          "匹配"
+        ]
+      }
+    },
+    {
+      "id": "no_result_handling",
+      "name": "无结果处理",
+      "type": "contains_any",
+      "weight": 15,
+      "params": {
+        "keywords": [
+          "未找到",
+          "没有结果",
+          "换个关键词",
+          "扩大范围",
+          "重新搜索"
+        ]
+      }
+    },
+    {
+      "id": "not_vague",
+      "name": "非空泛回答",
+      "type": "min_length_and_avoid_keywords",
+      "weight": 20,
+      "params": {
+        "min_length": 30,
+        "avoid_keywords": [
+          "不知道",
+          "随便",
+          "都可以"
+        ]
+      }
+    }
+  ],
+  "judge_fields": [
+    {
+      "id": "query_understanding_score",
+      "name": "Query 理解",
+      "description": "是否理解搜索意图、实体和筛选条件"
+    },
+    {
+      "id": "recall_relevance_score",
+      "name": "召回相关性",
+      "description": "结果是否覆盖核心意图且相关"
+    },
+    {
+      "id": "ranking_score",
+      "name": "排序合理性",
+      "description": "高价值结果是否靠前"
+    },
+    {
+      "id": "summary_faithfulness_score",
+      "name": "摘要可信度",
+      "description": "摘要是否忠实于检索结果"
+    },
+    {
+      "id": "freshness_score",
+      "name": "时效性",
+      "description": "是否处理时效性要求"
+    },
+    {
+      "id": "clarity_score",
+      "name": "表达清晰度",
+      "description": "结果呈现是否清晰"
+    }
+  ],
+  "bad_case": {
+    "rule_score_lt": 70,
+    "judge_average_lt": 3.5,
+    "types": [
+      "Query理解错误",
+      "召回不相关",
+      "排序错误",
+      "摘要幻觉",
+      "无结果处理差",
+      "时效性错误",
+      "接口失败",
+      "无问题",
+      "需求理解错误",
+      "未解决问题",
+      "幻觉风险",
+      "检索/知识库问题",
+      "工具调用问题"
+    ],
+    "root_causes": [
+      "Query解析问题",
+      "索引/知识库问题",
+      "检索策略问题",
+      "排序策略问题",
+      "模型问题",
+      "接口问题",
+      "业务规则问题",
+      "工具问题",
+      "检索问题"
+    ],
+    "no_problem_type": "无问题",
+    "default_type": "召回不相关",
+    "default_root_cause": "检索策略问题"
+  },
+  "metric_policy": {
+    "enabled_metrics": [
+      "intent_accuracy",
+      "answer_relevance_score",
+      "task_completion",
+      "hallucination",
+      "retrieval_recall",
+      "tool_success_rate",
+      "expected_tool_coverage"
+    ],
+    "thresholds": {
+      "intent_accuracy": 0.9,
+      "answer_relevance_score": 3.5,
+      "task_completion": 0.85,
+      "hallucination_rate": 0.05,
+      "retrieval_recall": 0.7,
+      "tool_success_rate": 0.95,
+      "expected_tool_coverage": 1.0
+    }
+  }
+}

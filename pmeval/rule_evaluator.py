@@ -1,78 +1,107 @@
 import re
+from typing import Any
 
+from pmeval.eval_template import EvalTemplate, load_template
 from pmeval.models import EvalCase, RuleScore
 from pmeval.utils import safe_json_loads
 
 
-VAGUE_PATTERNS = [
-    "看个人",
-    "因人而异",
-    "都可以",
-    "随便",
-    "无法判断",
-    "建议咨询专业人士",
-]
-
-REASON_PATTERNS = ["理由", "原因", "因为", "适合", "优势", "依据"]
-RISK_PATTERNS = ["避雷", "风险", "注意", "不建议", "谨慎", "刺激", "过敏", "踩雷"]
-
-
-def evaluate_rules(case: EvalCase, response_text: str, success: bool) -> RuleScore:
+def evaluate_rules(
+    case: EvalCase,
+    response_text: str,
+    success: bool,
+    template: EvalTemplate | None = None,
+) -> RuleScore:
+    selected_template = template or load_template(None)
     constraints = safe_json_loads(case.constraints_json)
     text = response_text or ""
     details: dict[str, object] = {}
 
     if not success:
-        return RuleScore(0, {"接口成功": False})
+        return RuleScore(0, {"接口成功": {"passed": False, "weight": 100, "evidence": "target call failed"}})
 
-    checks = [
-        _check_budget(text, constraints),
-        _check_category(text, constraints),
-        _check_reason(text),
-        _check_risk_tip(text),
-        _check_not_vague(text),
-    ]
     score = 0
-    for name, passed, weight, evidence in checks:
-        details[name] = {"passed": passed, "weight": weight, "evidence": evidence}
+    for check in selected_template.rule_checks:
+        passed, evidence = _run_check(check.type, text, constraints, check.params)
+        details[check.name] = {
+            "id": check.id,
+            "type": check.type,
+            "passed": passed,
+            "weight": check.weight,
+            "evidence": evidence,
+        }
         if passed:
-            score += weight
+            score += check.weight
     return RuleScore(min(100, int(score)), details)
 
 
-def _check_budget(text: str, constraints: dict) -> tuple[str, bool, int, str]:
-    budget = constraints.get("budget")
-    if not budget:
-        return ("预算约束", True, 20, "未设置预算")
+def _run_check(check_type: str, text: str, constraints: dict[str, Any], params: dict[str, Any]) -> tuple[bool, str]:
+    if check_type == "numeric_lte":
+        return _check_numeric_lte(text, constraints, params)
+    if check_type == "constraint_keywords":
+        return _check_constraint_keywords(text, constraints, params)
+    if check_type == "contains_any":
+        return _check_contains_any(text, params)
+    if check_type == "not_contains_any":
+        return _check_not_contains_any(text, params)
+    if check_type == "min_length_and_avoid_keywords":
+        return _check_min_length_and_avoid_keywords(text, params)
+    return False, f"unsupported_check_type={check_type}"
+
+
+def _constraint_values(constraints: dict[str, Any], fields: list[str]) -> list[Any]:
+    values: list[Any] = []
+    for field in fields:
+        value = constraints.get(field)
+        if value is None or value == "":
+            continue
+        if isinstance(value, list):
+            values.extend(value)
+        else:
+            values.append(value)
+    return values
+
+
+def _check_numeric_lte(text: str, constraints: dict[str, Any], params: dict[str, Any]) -> tuple[bool, str]:
+    values = _constraint_values(constraints, params.get("constraint_fields", []))
+    if not values:
+        return bool(params.get("unset_pass", True)), "未设置数值约束"
+    try:
+        limit = float(values[0])
+    except (TypeError, ValueError):
+        return False, f"约束不是数字: {values[0]}"
     numbers = [float(num) for num in re.findall(r"(\d+(?:\.\d+)?)\s*(?:元|块|rmb|RMB)?", text)]
     if not numbers:
-        return ("预算约束", False, 20, "回答未出现价格")
-    passed = max(numbers) <= float(budget)
-    return ("预算约束", passed, 20, f"max_price={max(numbers)}, budget={budget}")
+        return False, "回答未出现可校验数值"
+    observed = max(numbers)
+    return observed <= limit, f"max_observed={observed}, limit={limit}"
 
 
-def _check_category(text: str, constraints: dict) -> tuple[str, bool, int, str]:
-    keywords = constraints.get("categories") or constraints.get("category_keywords") or []
-    if isinstance(keywords, str):
-        keywords = [keywords]
+def _check_constraint_keywords(text: str, constraints: dict[str, Any], params: dict[str, Any]) -> tuple[bool, str]:
+    keywords = [str(item) for item in _constraint_values(constraints, params.get("constraint_fields", [])) if str(item)]
     if not keywords:
-        return ("品类关键词", True, 20, "未设置品类关键词")
-    matched = [kw for kw in keywords if str(kw).lower() in text.lower()]
-    return ("品类关键词", bool(matched), 20, ",".join(matched))
+        return bool(params.get("unset_pass", True)), "未设置关键词约束"
+    lowered = text.lower()
+    matched = [kw for kw in keywords if kw.lower() in lowered]
+    return bool(matched), ",".join(matched)
 
 
-def _check_reason(text: str) -> tuple[str, bool, int, str]:
-    matched = [kw for kw in REASON_PATTERNS if kw in text]
-    return ("推荐理由", bool(matched), 20, ",".join(matched))
+def _check_contains_any(text: str, params: dict[str, Any]) -> tuple[bool, str]:
+    keywords = [str(item) for item in params.get("keywords", [])]
+    matched = [kw for kw in keywords if kw in text]
+    return bool(matched), ",".join(matched)
 
 
-def _check_risk_tip(text: str) -> tuple[str, bool, int, str]:
-    matched = [kw for kw in RISK_PATTERNS if kw in text]
-    return ("避雷/风险提示", bool(matched), 20, ",".join(matched))
+def _check_not_contains_any(text: str, params: dict[str, Any]) -> tuple[bool, str]:
+    keywords = [str(item) for item in params.get("keywords", [])]
+    matched = [kw for kw in keywords if kw in text]
+    return not matched, ",".join(matched)
 
 
-def _check_not_vague(text: str) -> tuple[str, bool, int, str]:
-    if len(text.strip()) < 40:
-        return ("非空泛回答", False, 20, "回答过短")
-    matched = [kw for kw in VAGUE_PATTERNS if kw in text]
-    return ("非空泛回答", not matched, 20, ",".join(matched))
+def _check_min_length_and_avoid_keywords(text: str, params: dict[str, Any]) -> tuple[bool, str]:
+    min_length = int(params.get("min_length", 0))
+    if len(text.strip()) < min_length:
+        return False, f"回答过短: {len(text.strip())} < {min_length}"
+    avoid_keywords = [str(item) for item in params.get("avoid_keywords", [])]
+    matched = [kw for kw in avoid_keywords if kw in text]
+    return not matched, ",".join(matched)
