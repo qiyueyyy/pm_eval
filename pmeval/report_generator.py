@@ -47,7 +47,7 @@ def generate_report(results: list[EvalResult], target_name: str = "目标服务"
         "",
     ]
 
-    lines.extend(["", "## Product Metrics", ""])
+    lines.extend(["", "## 产品指标", ""])
     lines.extend(_metric_summary_lines(results))
     lines.extend([""])
     lines.extend(_counter_lines(type_counter, "本轮未发现 Bad Case 类型集中问题。"))
@@ -57,7 +57,7 @@ def generate_report(results: list[EvalResult], target_name: str = "目标服务"
     lines.extend(_counter_lines(severity_counter, "本轮无严重度分布。"))
 
     lines.extend(["", "## 迭代建议", ""])
-    lines.extend(["", "## Scenario / Template Summary", ""])
+    lines.extend(["", "## 场景 / 模板汇总", ""])
     lines.extend(_scenario_summary_lines(results))
 
     suggestions = []
@@ -96,17 +96,17 @@ def generate_compare_report(base_run: pd.Series, target_run: pd.Series, compare_
         _metric_row("平均 judge_score", base_run.get("avg_judge_score", 0), target_run.get("avg_judge_score", 0), "{:.2f}"),
         _metric_row("平均响应时间", base_run["avg_latency_ms"], target_run["avg_latency_ms"], "{:.0f} ms"),
         "",
-        "## Product Metrics 变化",
+        "## 产品指标变化",
         "",
         "| 指标 | 基准版本 | 对比版本 | 变化 |",
         "| --- | ---: | ---: | ---: |",
-        _metric_row("Intent Accuracy", base_run.get("avg_intent_accuracy", 0) or 0, target_run.get("avg_intent_accuracy", 0) or 0, "{:.1%}"),
-        _metric_row("Answer Relevance", base_run.get("avg_answer_relevance_score", 0) or 0, target_run.get("avg_answer_relevance_score", 0) or 0, "{:.2f}"),
-        _metric_row("Task Completion", base_run.get("avg_task_completion", 0) or 0, target_run.get("avg_task_completion", 0) or 0, "{:.1%}"),
-        _metric_row("Multi-turn Completion", base_run.get("avg_multi_turn_completion", 0) or 0, target_run.get("avg_multi_turn_completion", 0) or 0, "{:.1%}"),
-        _metric_row("Hallucination Rate", base_run.get("avg_hallucination_rate", 0) or 0, target_run.get("avg_hallucination_rate", 0) or 0, "{:.1%}"),
-        _metric_row("Retrieval Recall", base_run.get("avg_retrieval_recall", 0) or 0, target_run.get("avg_retrieval_recall", 0) or 0, "{:.1%}"),
-        _metric_row("Tool Success Rate", base_run.get("avg_tool_success_rate", 0) or 0, target_run.get("avg_tool_success_rate", 0) or 0, "{:.1%}"),
+        _metric_row("意图识别准确率", base_run.get("avg_intent_accuracy", 0) or 0, target_run.get("avg_intent_accuracy", 0) or 0, "{:.1%}"),
+        _metric_row("回答相关性", base_run.get("avg_answer_relevance_score", 0) or 0, target_run.get("avg_answer_relevance_score", 0) or 0, "{:.2f}"),
+        _metric_row("任务完成率", base_run.get("avg_task_completion", 0) or 0, target_run.get("avg_task_completion", 0) or 0, "{:.1%}"),
+        _metric_row("多轮对话完成率", base_run.get("avg_multi_turn_completion", 0) or 0, target_run.get("avg_multi_turn_completion", 0) or 0, "{:.1%}"),
+        _metric_row("幻觉率", base_run.get("avg_hallucination_rate", 0) or 0, target_run.get("avg_hallucination_rate", 0) or 0, "{:.1%}"),
+        _metric_row("检索召回率", base_run.get("avg_retrieval_recall", 0) or 0, target_run.get("avg_retrieval_recall", 0) or 0, "{:.1%}"),
+        _metric_row("工具调用成功率", base_run.get("avg_tool_success_rate", 0) or 0, target_run.get("avg_tool_success_rate", 0) or 0, "{:.1%}"),
         "",
     ]
 
@@ -176,17 +176,17 @@ def _scenario_summary_lines(results: list[EvalResult]) -> list[str]:
 
 def _metric_summary_lines(results: list[EvalResult]) -> list[str]:
     specs = [
-        ("intent_accuracy", "Intent Accuracy", True),
-        ("answer_relevance_score", "Answer Relevance", False),
-        ("task_completion", "Task Completion", True),
-        ("multi_turn_completion", "Multi-turn Completion", True),
-        ("hallucination", "Hallucination Rate", True),
-        ("retrieval_recall", "Retrieval Recall", True),
-        ("tool_success_rate", "Tool Success Rate", True),
-        ("expected_tool_coverage", "Expected Tool Coverage", True),
+        ("intent_accuracy", "意图识别准确率", True),
+        ("answer_relevance_score", "回答相关性", False),
+        ("task_completion", "任务完成率", True),
+        ("multi_turn_completion", "多轮对话完成率", True),
+        ("hallucination", "幻觉率", True),
+        ("retrieval_recall", "检索召回率", True),
+        ("tool_success_rate", "工具调用成功率", True),
+        ("expected_tool_coverage", "期望工具覆盖率", True),
     ]
     lines = [
-        "| metric | value | covered_cases |",
+        "| 指标 | 指标值 | 覆盖 case 数 |",
         "| --- | ---: | ---: |",
     ]
     for attr, label, percent in specs:

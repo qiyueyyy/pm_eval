@@ -362,13 +362,13 @@ class EvalDatabase:
         base_metrics = self.get_metric_scores(base_batch_id)
         target_metrics = self.get_metric_scores(target_batch_id)
         metric_cols = [
-            ("intent_accuracy", "Intent Accuracy"),
-            ("answer_relevance_score", "Answer Relevance"),
-            ("task_completion", "Task Completion"),
-            ("multi_turn_completion", "Multi-turn Completion"),
-            ("hallucination", "Hallucination Rate"),
-            ("retrieval_recall", "Retrieval Recall"),
-            ("tool_success_rate", "Tool Success Rate"),
+            ("intent_accuracy", "意图识别准确率"),
+            ("answer_relevance_score", "回答相关性"),
+            ("task_completion", "任务完成率"),
+            ("multi_turn_completion", "多轮对话完成率"),
+            ("hallucination", "幻觉率"),
+            ("retrieval_recall", "检索召回率"),
+            ("tool_success_rate", "工具调用成功率"),
         ]
         result = {}
         for col, label in metric_cols:
@@ -377,7 +377,9 @@ class EvalDatabase:
             delta = None
             if base_val is not None and target_val is not None:
                 delta = target_val - base_val
-            result[label] = {"base": base_val, "target": target_val, "delta": delta}
+            payload = {"base": base_val, "target": target_val, "delta": delta}
+            result[label] = payload
+            result[col] = payload
         return result
 
     def get_filtered_metric_trends(

@@ -30,6 +30,60 @@ CASE_COLUMNS = [
     "tags",
 ]
 
+METRIC_LABELS = {
+    "intent_accuracy": "意图识别准确率",
+    "answer_relevance_score": "回答相关性",
+    "task_completion": "任务完成率",
+    "multi_turn_completion": "多轮对话完成率",
+    "hallucination": "幻觉率",
+    "hallucination_rate": "幻觉率",
+    "retrieval_recall": "检索召回率",
+    "tool_success_rate": "工具调用成功率",
+    "expected_tool_coverage": "期望工具覆盖率",
+    "success_rate": "成功率",
+    "bad_case_rate": "Bad Case 率",
+    "avg_rule_score": "平均 rule_score",
+    "avg_judge_score": "平均 judge_score",
+    "avg_latency_ms": "平均响应时间",
+    "case_count": "case 数",
+    "total_cases": "总 case 数",
+    "batch_id": "Batch ID",
+    "case_id": "case_id",
+    "user_query": "用户问题",
+    "template_id": "模板",
+    "scenario_type": "场景",
+    "success": "调用成功",
+    "latency_ms": "响应时间",
+    "rule_score": "rule_score",
+    "judge_average": "judge_score",
+    "judge_is_bad_case": "大模型判定 Bad Case",
+    "judge_error": "大模型评审错误",
+    "is_bad_case": "是否 Bad Case",
+    "bad_case_type": "问题类型",
+    "root_cause": "根因",
+    "response_text": "回答内容",
+    "error": "调用错误",
+    "retrieved_items_count": "检索结果数",
+    "tool_calls_count": "工具调用数",
+    "improvement_suggestion": "优化建议",
+    "severity": "严重度",
+    "prompt_name": "Prompt",
+    "target_name": "目标服务",
+    "started_at": "开始时间",
+}
+
+PRODUCT_METRIC_SPECS = [
+    ("intent_accuracy", "意图识别准确率", True),
+    ("answer_relevance_score", "回答相关性", False),
+    ("task_completion", "任务完成率", True),
+    ("multi_turn_completion", "多轮对话完成率", True),
+    ("hallucination", "幻觉率", True),
+    ("hallucination_rate", "幻觉率", True),
+    ("retrieval_recall", "检索召回率", True),
+    ("tool_success_rate", "工具调用成功率", True),
+    ("expected_tool_coverage", "期望工具覆盖率", True),
+]
+
 
 def init_state() -> None:
     if "cases_df" not in st.session_state:
@@ -136,6 +190,20 @@ def metric_display(df: pd.DataFrame, column: str, percent: bool = True) -> str:
         return "N/A"
     value = values.mean()
     return f"{value:.1%}" if percent else f"{value:.2f}"
+
+
+def metric_label(column: str) -> str:
+    return METRIC_LABELS.get(column, column)
+
+
+def rename_display_columns(df: pd.DataFrame) -> pd.DataFrame:
+    return df.rename(columns={col: metric_label(col) for col in df.columns})
+
+
+def format_metric_value(value, percent: bool = True) -> str:
+    if value is None or pd.isna(value):
+        return "N/A"
+    return f"{float(value):.1%}" if percent else f"{float(value):.2f}"
 
 
 def normalize_cases_df(df: pd.DataFrame) -> pd.DataFrame:
@@ -252,26 +320,18 @@ def scenario_result_frame(results_df: pd.DataFrame) -> pd.DataFrame:
 def metric_summary_frame(results_df: pd.DataFrame) -> pd.DataFrame:
     if results_df.empty:
         return pd.DataFrame()
-    specs = [
-        ("intent_accuracy", "Intent Accuracy"),
-        ("answer_relevance_score", "Answer Relevance"),
-        ("task_completion", "Task Completion"),
-        ("multi_turn_completion", "Multi-turn Completion"),
-        ("hallucination", "Hallucination Rate"),
-        ("retrieval_recall", "Retrieval Recall"),
-        ("tool_success_rate", "Tool Success Rate"),
-        ("expected_tool_coverage", "Expected Tool Coverage"),
-    ]
     rows = []
-    for column, label in specs:
+    for column, label, percent in PRODUCT_METRIC_SPECS:
+        if column == "hallucination_rate":
+            continue
         if column not in results_df:
             continue
         values = results_df[column].dropna()
         rows.append(
             {
-                "metric": label,
-                "covered_cases": int(values.shape[0]),
-                "value": values.mean() if not values.empty else None,
+                "指标": label,
+                "覆盖 case 数": int(values.shape[0]),
+                "指标值": format_metric_value(values.mean(), percent) if not values.empty else "N/A",
             }
         )
     return pd.DataFrame(rows)
@@ -652,7 +712,7 @@ def render_version_compare(db: EvalDatabase) -> None:
     if len(runs_df) < 2:
         st.info("至少完成两次评测后，才能进行版本对比。")
         if not runs_df.empty:
-            st.dataframe(runs_df, use_container_width=True, height=240)
+            st.dataframe(rename_display_columns(runs_df), use_container_width=True, height=240)
         return
 
     labels = {run_label(row): row["batch_id"] for _, row in runs_df.iterrows()}
@@ -678,7 +738,7 @@ def render_version_compare(db: EvalDatabase) -> None:
             st.warning(f"读取版本对比指标时出现问题：{e}")
             metric_summary = None
     else:
-        st.warning("当前数据库版本不支持版本对比的度量摘要，已跳过 Product Metrics 变化展示。")
+        st.warning("当前数据库版本不支持版本对比的度量摘要，已跳过产品指标变化展示。")
 
     render_compare_metrics(base_run, target_run, metric_summary)
     render_compare_detail(compare_df)
@@ -695,19 +755,17 @@ def render_compare_metrics(base_run, target_run, metric_summary: dict | None = N
     delta_metric(metric_cols[3], "平均 judge_score", base_run.get("avg_judge_score", 0), target_run.get("avg_judge_score", 0), lambda v: f"{v:.2f}")
     metric_cols[4].metric("覆盖 case", f"{int(target_run['total_cases'])}", delta=f"{int(target_run['total_cases'] - base_run['total_cases'])}")
 
-    # Product metric deltas
     if metric_summary:
-        st.subheader("Product Metrics 变化")
+        st.subheader("产品指标变化")
         product_metric_specs = [
-            ("Intent Accuracy", "intent_accuracy", lambda v: f"{v:.1%}" if v is not None else "N/A"),
-            ("Answer Relevance", "answer_relevance_score", lambda v: f"{v:.2f}" if v is not None else "N/A"),
-            ("Task Completion", "task_completion", lambda v: f"{v:.1%}" if v is not None else "N/A"),
-            ("Multi-turn Completion", "multi_turn_completion", lambda v: f"{v:.1%}" if v is not None else "N/A"),
-            ("Hallucination Rate", "hallucination", lambda v: f"{v:.1%}" if v is not None else "N/A"),
-            ("Retrieval Recall", "retrieval_recall", lambda v: f"{v:.1%}" if v is not None else "N/A"),
-            ("Tool Success Rate", "tool_success_rate", lambda v: f"{v:.1%}" if v is not None else "N/A"),
+            ("意图识别准确率", "intent_accuracy", lambda v: f"{v:.1%}" if v is not None else "N/A"),
+            ("回答相关性", "answer_relevance_score", lambda v: f"{v:.2f}" if v is not None else "N/A"),
+            ("任务完成率", "task_completion", lambda v: f"{v:.1%}" if v is not None else "N/A"),
+            ("多轮对话完成率", "multi_turn_completion", lambda v: f"{v:.1%}" if v is not None else "N/A"),
+            ("幻觉率", "hallucination", lambda v: f"{v:.1%}" if v is not None else "N/A"),
+            ("检索召回率", "retrieval_recall", lambda v: f"{v:.1%}" if v is not None else "N/A"),
+            ("工具调用成功率", "tool_success_rate", lambda v: f"{v:.1%}" if v is not None else "N/A"),
         ]
-        # Use the run-level averages for display, fall back to metric_summary
         run_metric_map = {
             "intent_accuracy": ("avg_intent_accuracy", lambda v: f"{v:.1%}"),
             "answer_relevance_score": ("avg_answer_relevance_score", lambda v: f"{v:.2f}"),
@@ -724,7 +782,7 @@ def render_compare_metrics(base_run, target_run, metric_summary: dict | None = N
             base_val = base_run.get(run_col) if run_col else None
             target_val = target_run.get(run_col) if run_col else None
             if base_val is None and target_val is None and metric_summary:
-                ms = metric_summary.get(label, {})
+                ms = metric_summary.get(label, {}) or metric_summary.get(key, {})
                 base_val = ms.get("base")
                 target_val = ms.get("target")
             if base_val is not None and target_val is not None:
@@ -735,8 +793,8 @@ def render_compare_metrics(base_run, target_run, metric_summary: dict | None = N
                     delta=run_fmt(delta_val) if run_fmt else fmt(delta_val),
                 )
             else:
-                base_text = run_fmt(base_val) if run_fmt and base_val is not None else (fmt(base_val) if base_val is not None else "N/A")
-                cols[col_idx].metric(label, base_text)
+                value_text = run_fmt(base_val) if run_fmt and base_val is not None else (fmt(base_val) if base_val is not None else "N/A")
+                cols[col_idx].metric(label, value_text)
 
 
 def render_compare_detail(compare_df: pd.DataFrame) -> None:
@@ -770,6 +828,13 @@ def render_compare_detail(compare_df: pd.DataFrame) -> None:
         "judge_average_base",
         "judge_average_target",
         "judge_average_delta",
+        "intent_accuracy_delta",
+        "answer_relevance_score_delta",
+        "task_completion_delta",
+        "multi_turn_completion_delta",
+        "hallucination_delta",
+        "retrieval_recall_delta",
+        "tool_success_rate_delta",
         "bad_case_type_base",
         "bad_case_type_target",
         "root_cause_base",
@@ -778,7 +843,29 @@ def render_compare_detail(compare_df: pd.DataFrame) -> None:
     ]
     existing_cols = [col for col in display_cols if col in compare_df.columns]
     st.subheader("Case 级变化")
-    st.dataframe(compare_df[existing_cols], use_container_width=True, height=420)
+    compare_display_names = {
+        "case_id": "case_id",
+        "change_status": "变化状态",
+        "rule_score_base": "基准 rule_score",
+        "rule_score_target": "对比 rule_score",
+        "rule_score_delta": "rule_score 变化",
+        "judge_average_base": "基准 judge_score",
+        "judge_average_target": "对比 judge_score",
+        "judge_average_delta": "judge_score 变化",
+        "intent_accuracy_delta": "意图识别准确率变化",
+        "answer_relevance_score_delta": "回答相关性变化",
+        "task_completion_delta": "任务完成率变化",
+        "multi_turn_completion_delta": "多轮对话完成率变化",
+        "hallucination_delta": "幻觉率变化",
+        "retrieval_recall_delta": "检索召回率变化",
+        "tool_success_rate_delta": "工具调用成功率变化",
+        "bad_case_type_base": "基准问题类型",
+        "bad_case_type_target": "对比问题类型",
+        "root_cause_base": "基准根因",
+        "root_cause_target": "对比根因",
+        "user_query_target": "用户问题",
+    }
+    st.dataframe(compare_df[existing_cols].rename(columns=compare_display_names), use_container_width=True, height=420)
 
 
 def _category_trend(df: pd.DataFrame, base_col: str, target_col: str) -> pd.DataFrame:
@@ -939,14 +1026,14 @@ def render_eval_trends(db: EvalDatabase) -> None:
     chart_cols = st.columns(2)
     with chart_cols[0]:
         st.caption("成功率 / Bad Case 率")
-        st.line_chart(trend_df[["success_rate", "bad_case_rate"]])
+        st.line_chart(rename_display_columns(trend_df[["success_rate", "bad_case_rate"]]))
     with chart_cols[1]:
         st.caption("平均分")
-        st.line_chart(trend_df[["avg_rule_score", "avg_judge_score"]])
+        st.line_chart(rename_display_columns(trend_df[["avg_rule_score", "avg_judge_score"]]))
 
-    # Product metric curves
+    # 产品指标曲线
     if metric_trend_df.empty:
-        st.info("暂无 Product Metric 数据。")
+        st.info("暂无产品指标数据。")
     else:
         metric_trend_df = metric_trend_df.sort_values("started_at")
         metric_trend_df["version"] = metric_trend_df.apply(
@@ -955,62 +1042,62 @@ def render_eval_trends(db: EvalDatabase) -> None:
         )
         metric_trend_df = metric_trend_df.set_index("version")
 
-        st.subheader("Product Metrics 趋势")
+        st.subheader("产品指标趋势")
         if has_filters:
             st.caption("当前指标已按选中的筛选条件过滤（仅统计符合条件的 case）。")
 
         prod_chart_cols = st.columns(2)
         with prod_chart_cols[0]:
-            st.caption("Task Completion Rate")
+            st.caption("任务完成率")
             if "task_completion" in metric_trend_df.columns:
-                st.line_chart(metric_trend_df[["task_completion"]])
+                st.line_chart(rename_display_columns(metric_trend_df[["task_completion"]]))
             else:
                 st.info("暂无数据")
         with prod_chart_cols[1]:
-            st.caption("Hallucination Rate")
+            st.caption("幻觉率")
             if "hallucination_rate" in metric_trend_df.columns:
-                st.line_chart(metric_trend_df[["hallucination_rate"]])
+                st.line_chart(rename_display_columns(metric_trend_df[["hallucination_rate"]]))
             else:
                 st.info("暂无数据")
 
         prod_chart_cols2 = st.columns(2)
         with prod_chart_cols2[0]:
-            st.caption("Retrieval Recall")
+            st.caption("检索召回率")
             if "retrieval_recall" in metric_trend_df.columns:
-                st.line_chart(metric_trend_df[["retrieval_recall"]])
+                st.line_chart(rename_display_columns(metric_trend_df[["retrieval_recall"]]))
             else:
                 st.info("暂无数据")
         with prod_chart_cols2[1]:
-            st.caption("Tool Success Rate")
+            st.caption("工具调用成功率")
             if "tool_success_rate" in metric_trend_df.columns:
-                st.line_chart(metric_trend_df[["tool_success_rate"]])
+                st.line_chart(rename_display_columns(metric_trend_df[["tool_success_rate"]]))
             else:
                 st.info("暂无数据")
 
         # Additional product metrics
-        st.subheader("更多 Product Metrics")
+        st.subheader("更多产品指标")
         extra_chart_cols = st.columns(3)
         with extra_chart_cols[0]:
-            st.caption("Intent Accuracy")
+            st.caption("意图识别准确率")
             if "intent_accuracy" in metric_trend_df.columns:
-                st.line_chart(metric_trend_df[["intent_accuracy"]])
+                st.line_chart(rename_display_columns(metric_trend_df[["intent_accuracy"]]))
             else:
                 st.info("暂无数据")
         with extra_chart_cols[1]:
-            st.caption("Answer Relevance")
+            st.caption("回答相关性")
             if "answer_relevance_score" in metric_trend_df.columns:
-                st.line_chart(metric_trend_df[["answer_relevance_score"]])
+                st.line_chart(rename_display_columns(metric_trend_df[["answer_relevance_score"]]))
             else:
                 st.info("暂无数据")
         with extra_chart_cols[2]:
-            st.caption("Multi-turn Completion")
+            st.caption("多轮对话完成率")
             if "multi_turn_completion" in metric_trend_df.columns:
-                st.line_chart(metric_trend_df[["multi_turn_completion"]])
+                st.line_chart(rename_display_columns(metric_trend_df[["multi_turn_completion"]]))
             else:
                 st.info("暂无数据")
 
         # Show filtered metric summary table
-        with st.expander("Product Metrics 明细表", expanded=False):
+        with st.expander("产品指标明细表", expanded=False):
             display_cols = [
                 "version", "case_count", "intent_accuracy", "answer_relevance_score",
                 "task_completion", "multi_turn_completion", "hallucination_rate",
@@ -1018,7 +1105,7 @@ def render_eval_trends(db: EvalDatabase) -> None:
             ]
             existing_cols = [c for c in display_cols if c in metric_trend_df.columns]
             st.dataframe(
-                metric_trend_df[existing_cols].reset_index(),
+                rename_display_columns(metric_trend_df[existing_cols].reset_index()),
                 use_container_width=True,
                 height=300,
             )
@@ -1039,7 +1126,7 @@ def render_eval_trends(db: EvalDatabase) -> None:
         "avg_latency_ms",
     ]
     existing_cols = [c for c in display_cols if c in runs_df.columns]
-    st.dataframe(runs_df[existing_cols], use_container_width=True, height=420)
+    st.dataframe(rename_display_columns(runs_df[existing_cols]), use_container_width=True, height=420)
 
 
 def _short_version(row) -> str:
@@ -1215,12 +1302,12 @@ metric_cols[4].metric("平均 judge_score", f"{avg_judge:.2f}" if pd.notna(avg_j
 metric_cols[5].metric("平均响应时间", f"{avg_latency:.0f} ms")
 
 product_metric_cols = st.columns(6)
-product_metric_cols[0].metric("Task Completion", metric_display(results_df, "task_completion"))
-product_metric_cols[1].metric("Hallucination Rate", metric_display(results_df, "hallucination"))
-product_metric_cols[2].metric("Intent Accuracy", metric_display(results_df, "intent_accuracy"))
-product_metric_cols[3].metric("Answer Relevance", metric_display(results_df, "answer_relevance_score", percent=False))
-product_metric_cols[4].metric("Retrieval Recall", metric_display(results_df, "retrieval_recall"))
-product_metric_cols[5].metric("Tool Success", metric_display(results_df, "tool_success_rate"))
+product_metric_cols[0].metric("任务完成率", metric_display(results_df, "task_completion"))
+product_metric_cols[1].metric("幻觉率", metric_display(results_df, "hallucination"))
+product_metric_cols[2].metric("意图识别准确率", metric_display(results_df, "intent_accuracy"))
+product_metric_cols[3].metric("回答相关性", metric_display(results_df, "answer_relevance_score", percent=False))
+product_metric_cols[4].metric("检索召回率", metric_display(results_df, "retrieval_recall"))
+product_metric_cols[5].metric("工具调用成功率", metric_display(results_df, "tool_success_rate"))
 
 render_eval_job(st.session_state.eval_job)
 
@@ -1263,13 +1350,13 @@ with tabs[1]:
     else:
         metric_summary = metric_summary_frame(results_df)
         if not metric_summary.empty:
-            st.subheader("Product Metric Summary")
+            st.subheader("产品指标汇总")
             st.dataframe(metric_summary, use_container_width=True, height=260)
         scenario_summary = scenario_result_frame(results_df)
         if not scenario_summary.empty:
-            st.subheader("Scenario / Template Summary")
-            st.dataframe(scenario_summary, use_container_width=True, height=220)
-        st.dataframe(results_df, use_container_width=True, height=520)
+            st.subheader("场景 / 模板指标汇总")
+            st.dataframe(rename_display_columns(scenario_summary), use_container_width=True, height=220)
+        st.dataframe(rename_display_columns(results_df), use_container_width=True, height=520)
 
 with tabs[2]:
     render_version_compare(db)
@@ -1301,9 +1388,9 @@ with tabs[5]:
         type_options = sorted([v for v in bad_cases_df["bad_case_type"].dropna().unique().tolist() if v])
         cause_options = sorted([v for v in bad_cases_df["root_cause"].dropna().unique().tolist() if v])
         severity_options = sorted([v for v in bad_cases_df["severity"].dropna().unique().tolist() if v])
-        selected_types = filter_cols[0].multiselect("bad_case_type", type_options, default=type_options)
-        selected_causes = filter_cols[1].multiselect("root_cause", cause_options, default=cause_options)
-        selected_severity = filter_cols[2].multiselect("severity", severity_options, default=severity_options)
+        selected_types = filter_cols[0].multiselect("问题类型", type_options, default=type_options)
+        selected_causes = filter_cols[1].multiselect("根因", cause_options, default=cause_options)
+        selected_severity = filter_cols[2].multiselect("严重度", severity_options, default=severity_options)
 
         filtered_bad_cases = bad_cases_df[
             bad_cases_df["bad_case_type"].isin(selected_types)
@@ -1311,7 +1398,7 @@ with tabs[5]:
             & bad_cases_df["severity"].isin(selected_severity)
         ]
         st.caption(f"当前筛选结果：{len(filtered_bad_cases)} / {len(bad_cases_df)}")
-        st.dataframe(filtered_bad_cases, use_container_width=True, height=520)
+        st.dataframe(rename_display_columns(filtered_bad_cases), use_container_width=True, height=520)
 
 with tabs[6]:
     if not report_md:
